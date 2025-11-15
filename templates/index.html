@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Stock Management</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="bg-light">
+
+<div class="container my-4">
+  <h1 class="mb-4 text-center">📦 Stock Management</h1>
+
+  <!-- Summary Cards -->
+  <div class="row mb-4">
+    <div class="col-md-4">
+      <div class="card text-bg-primary shadow">
+        <div class="card-body">
+          <h5>Total Products</h5>
+          <p class="fs-4">{{ total_products }}</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card text-bg-success shadow">
+        <div class="card-body">
+          <h5>Total Value</h5>
+          <p class="fs-4">₹{{ '%.2f' % total_value }}</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card text-bg-danger shadow">
+        <div class="card-body">
+          <h5>Low Stock (&lt; {{ low_stock_threshold }})</h5>
+          <p class="fs-4">{{ low_stock }}</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Product -->
+  <div class="card mb-4 shadow">
+    <div class="card-body">
+      <h5 class="card-title">➕ Add Product</h5>
+      <form id="addForm" class="row g-3">
+        <div class="col-md-3">
+          <input type="text" class="form-control" placeholder="Name" name="name" required>
+        </div>
+        <div class="col-md-2">
+          <input type="number" class="form-control" placeholder="Quantity" name="quantity" required>
+        </div>
+        <div class="col-md-2">
+          <input type="number" step="0.01" class="form-control" placeholder="Price" name="price" required>
+        </div>
+        <div class="col-md-3">
+          <input type="text" class="form-control" placeholder="Category" name="category">
+        </div>
+        <div class="col-md-2">
+          <button type="submit" class="btn btn-primary w-100">Add</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Products Table -->
+  <div class="card shadow mb-4">
+    <div class="card-body">
+      <h5 class="card-title">📋 Product List</h5>
+      <div class="table-responsive">
+        <table class="table table-striped align-middle">
+          <thead>
+            <tr>
+              <th>ID</th><th>Name</th><th>Qty</th><th>Price</th><th>Category</th><th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for p in products %}
+            <tr>
+              <td>{{ p.id }}</td>
+              <td>{{ p.name }}</td>
+              <td>{{ p.quantity }}</td>
+              <td>₹{{ '%.2f' % p.price }}</td>
+              <td>{{ p.category }}</td>
+              <td>
+                <!-- Edit Button -->
+                <button class="btn btn-sm btn-warning"
+                        onclick='openEdit(JSON.parse(this.dataset.product))'
+                        data-product='{{ p | tojson | safe }}'>
+                  Edit
+                </button>
+                <!-- Delete Form -->
+                <form action="{{ url_for('delete', id=p['id']) }}" method="POST" class="d-inline"
+                      onsubmit="return confirm('Delete {{ p.name|e }}?');">
+                  <button class="btn btn-sm btn-danger">Delete</button>
+                </form>
+              </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="6" class="text-center text-muted">No products available.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Charts -->
+  <div class="row">
+    <div class="col-md-6">
+      <canvas id="barChart"></canvas>
+    </div>
+    <div class="col-md-6">
+      <canvas id="pieChart"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Modal -->
+<div class="modal fade" id="editModal" tabindex="-1">
+  <div class="modal-dialog">
+    <form id="editForm" class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">✏️ Edit Product</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="editId">
+        <div class="mb-3">
+          <label class="form-label">Name</label>
+          <input type="text" id="editName" class="form-control" required>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Quantity</label>
+          <input type="number" id="editQuantity" class="form-control" required>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Price</label>
+          <input type="number" step="0.01" id="editPrice" class="form-control" required>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Category</label>
+          <input type="text" id="editCategory" class="form-control">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save Changes</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Chart Data -->
+<script id="chart-data" type="application/json">
+  {{ chart_data | tojson }}
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+  // Parse Chart Data
+  const chartData = JSON.parse(document.getElementById("chart-data").textContent);
+
+  // Add Product
+  document.getElementById("addForm").onsubmit = async e => {
+    e.preventDefault();
+    const data = Object.fromEntries(new FormData(e.target));
+    await fetch("/api/add", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data)
+    });
+    location.reload();
+  };
+
+  // Edit Product
+  function openEdit(p) {
+    document.getElementById("editId").value = p.id;
+    document.getElementById("editName").value = p.name;
+    document.getElementById("editQuantity").value = p.quantity;
+    document.getElementById("editPrice").value = p.price;
+    document.getElementById("editCategory").value = p.category;
+    new bootstrap.Modal(document.getElementById("editModal")).show();
+  }
+
+  document.getElementById("editForm").onsubmit = async e => {
+    e.preventDefault();
+    const id = document.getElementById("editId").value;
+    const data = {
+      name: document.getElementById("editName").value,
+      quantity: document.getElementById("editQuantity").value,
+      price: document.getElementById("editPrice").value,
+      category: document.getElementById("editCategory").value
+    };
+    await fetch(`/api/edit/${id}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data)
+    });
+    location.reload();
+  };
+
+  // Charts
+  new Chart(document.getElementById("barChart"), {
+    type: "bar",
+    data: {
+      labels: chartData.labels,
+      datasets: [{ label: "Stock Qty", data: chartData.quantities }]
+    }
+  });
+
+  new Chart(document.getElementById("pieChart"), {
+    type: "pie",
+    data: {
+      labels: chartData.categories,
+      datasets: [{ data: chartData.category_values }]
+    }
+  });
+</script>
+
+</body>
+</html>
