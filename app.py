@@ -1,151 +1,425 @@
-from flask import Flask, render_template, request, jsonify, redirect, url_for
-import pandas as pd
-import os
+# app.py
+from flask import Flask, g, request, jsonify, render_template, send_file, render_template_string, make_response
+import sqlite3, os, csv
+from datetime import datetime
+from io import BytesIO, StringIO
+from reportlab.lib.pagesizes import A4
+from reportlab.pdfgen import canvas
+from reportlab.lib.units import mm
 
-app = Flask(__name__)
-
-FILE = "products.xlsx"
-LOW_STOCK_THRESHOLD = 10
-
-
-def ensure_excel():
-    """Create products.xlsx with correct headers if missing/invalid."""
-    required_cols = ["id", "name", "quantity", "price", "category"]
-    if not os.path.exists(FILE):
-        df = pd.DataFrame(columns=required_cols)
-        df.to_excel(FILE, index=False)
-        return
-
-    try:
-        df = pd.read_excel(FILE)
-        if df.empty or not all(col in df.columns for col in required_cols):
-            df = pd.DataFrame(columns=required_cols)
-            df.to_excel(FILE, index=False)
-    except Exception:
-        df = pd.DataFrame(columns=required_cols)
-        df.to_excel(FILE, index=False)
+DB_PATH = "data.db"
+app = Flask(__name__, template_folder="templates")
 
 
-def load_products():
-    """Load and sanitize product data."""
-    ensure_excel()
-    df = pd.read_excel(FILE)
-    products = []
-    for row in df.to_dict(orient="records"):
-        try:
-            pid = str(row.get("id", "")).strip()
-            name = str(row.get("name", "")) if pd.notna(row.get("name", "")) else ""
-            raw_q = row.get("quantity", 0)
-            raw_p = row.get("price", 0.0)
-            quantity = int(raw_q) if not pd.isna(raw_q) and raw_q != "" else 0
-            price = float(raw_p) if not pd.isna(raw_p) and raw_p != "" else 0.0
-            category = str(row.get("category", "")) if pd.notna(row.get("category", "")) else ""
-            products.append({
-                "id": pid,
-                "name": name,
-                "quantity": quantity,
-                "price": price,
-                "category": category
-            })
-        except Exception:
-            continue
-    return products
+# -----------------------
+# DB helpers & init
+# -----------------------
+def get_db():
+    db = getattr(g, "_database", None)
+    if db is None:
+        need_init = not os.path.exists(DB_PATH)
+        db = g._database = sqlite3.connect(DB_PATH)
+        db.row_factory = sqlite3.Row
+        if need_init:
+            init_db(db)
+    return db
+
+def init_db(db):
+    cur = db.cursor()
+    cur.executescript("""
+    CREATE TABLE products (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        qty INTEGER DEFAULT 0,
+        price REAL DEFAULT 0.0,
+        category TEXT,
+        default_tax REAL DEFAULT 0.0,
+        default_discount REAL DEFAULT 0.0
+    );
+    CREATE TABLE customers (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT,
+        phone TEXT,
+        address TEXT
+    );
+    CREATE TABLE invoices (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        invoice_no TEXT,
+        year INTEGER,
+        customer_id INTEGER,
+        customer_name TEXT,
+        customer_phone TEXT,
+        date TEXT,
+        total REAL
+    );
+    CREATE TABLE invoice_items (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        invoice_id INTEGER,
+        product_id INTEGER,
+        item TEXT,
+        qty INTEGER,
+        price REAL,
+        discount REAL,
+        tax REAL,
+        amount REAL
+    );
+    """)
+    db.commit()
+
+@app.teardown_appcontext
+def close_connection(exception):
+    db = getattr(g, "_database", None)
+    if db is not None:
+        db.close()
 
 
-def save_products(products):
-    df = pd.DataFrame(products)
-    df.to_excel(FILE, index=False)
+# -----------------------
+# Utility functions
+# -----------------------
+def next_invoice_no(db_conn):
+    cur = db_conn.cursor()
+    y = datetime.now().year
+    cur.execute("SELECT COUNT(*) as cnt FROM invoices WHERE year=?", (y,))
+    cnt = cur.fetchone()["cnt"]
+    seq = cnt + 1
+    invoice_no = f"INV-{y}-{seq:04d}"
+    return invoice_no, y
 
 
+# -----------------------
+# UI route
+# -----------------------
 @app.route("/")
 def index():
-    products = load_products()
-
-    total_products = len(products)
-    total_value = sum(p["quantity"] * p["price"] for p in products)
-    low_stock = sum(1 for p in products if p["quantity"] < LOW_STOCK_THRESHOLD)
-
-    categories = {}
-    for p in products:
-        cat = p["category"] or "Uncategorized"
-        categories[cat] = categories.get(cat, 0) + p["quantity"]
-
-    chart_data = {
-        "labels": [p["name"] for p in products],
-        "quantities": [p["quantity"] for p in products],
-        "categories": list(categories.keys()),
-        "category_values": list(categories.values())
-    }
-
-    return render_template(
-        "index.html",
-        products=products,
-        total_products=total_products,
-        total_value=total_value,
-        low_stock=low_stock,
-        low_stock_threshold=LOW_STOCK_THRESHOLD,
-        chart_data=chart_data
-    )
+    return render_template("index.html")
 
 
-@app.route("/api/add", methods=["POST"])
-def api_add():
-    products = load_products()
-    data = request.get_json(force=True) or {}
+# -----------------------
+# Products
+# -----------------------
+@app.route("/api/products", methods=["GET"])
+def api_products():
+    db = get_db()
+    rows = db.execute("SELECT id, name, qty, price, category, default_tax, default_discount FROM products ORDER BY id DESC").fetchall()
+    return jsonify([dict(r) for r in rows])
 
-    existing_ids = []
-    for p in products:
-        try:
-            existing_ids.append(int(p["id"]))
-        except Exception:
-            continue
-    next_id = str(max(existing_ids) + 1) if existing_ids else "1"
-    pid = str(data.get("id", "")).strip() or next_id
+@app.route("/api/product/add", methods=["POST"])
+def api_product_add():
+    data = request.get_json()
+    name = data.get("name","").strip()
+    qty = int(data.get("qty") or 0)
+    price = float(data.get("price") or 0)
+    cat = data.get("category") or ""
+    default_tax = float(data.get("default_tax") or 0)
+    default_discount = float(data.get("default_discount") or 0)
+    db = get_db()
+    db.execute("INSERT INTO products (name, qty, price, category, default_tax, default_discount) VALUES (?, ?, ?, ?, ?, ?)",
+               (name, qty, price, cat, default_tax, default_discount))
+    db.commit()
+    return jsonify(success=True)
 
-    try:
-        product = {
-            "id": pid,
-            "name": str(data.get("name", "")).strip(),
-            "quantity": int(data.get("quantity", 0)),
-            "price": float(data.get("price", 0.0)),
-            "category": str(data.get("category", "")).strip()
-        }
-    except Exception as e:
-        return jsonify({"success": False, "message": f"Invalid input: {e}"}), 400
+@app.route("/api/product/edit", methods=["POST"])
+def api_product_edit():
+    data = request.get_json()
+    pid = int(data.get("id"))
+    name = data.get("name","").strip()
+    qty = int(data.get("qty") or 0)
+    price = float(data.get("price") or 0)
+    cat = data.get("category") or ""
+    default_tax = float(data.get("default_tax") or 0)
+    default_discount = float(data.get("default_discount") or 0)
+    db = get_db()
+    db.execute("UPDATE products SET name=?, qty=?, price=?, category=?, default_tax=?, default_discount=? WHERE id=?",
+               (name, qty, price, cat, default_tax, default_discount, pid))
+    db.commit()
+    return jsonify(success=True)
 
-    products.append(product)
-    save_products(products)
-    return jsonify({"success": True, "product": product})
-
-
-@app.route("/api/edit/<id>", methods=["POST"])
-def api_edit(id):
-    products = load_products()
-    data = request.get_json(force=True) or {}
-    updated = False
-    for p in products:
-        if str(p["id"]) == str(id):
-            p["name"] = str(data.get("name", p["name"])).strip()
-            p["quantity"] = int(data.get("quantity", p["quantity"]))
-            p["price"] = float(data.get("price", p["price"]))
-            p["category"] = str(data.get("category", p["category"])).strip()
-            updated = True
-            break
-    if not updated:
-        return jsonify({"success": False, "message": "Product not found"}), 404
-    save_products(products)
-    return jsonify({"success": True})
-
-
-@app.route("/delete/<id>", methods=["POST"])
-def delete(id):
-    products = load_products()
-    products = [p for p in products if str(p["id"]) != str(id)]
-    save_products(products)
-    return redirect(url_for("index"))
+@app.route("/api/product/delete", methods=["POST"])
+def api_product_delete():
+    data = request.get_json()
+    pid = int(data.get("id"))
+    db = get_db()
+    db.execute("DELETE FROM products WHERE id=?", (pid,))
+    db.commit()
+    return jsonify(success=True)
 
 
+# -----------------------
+# Customers
+# -----------------------
+@app.route("/api/customers", methods=["GET"])
+def api_customers():
+    db = get_db()
+    rows = db.execute("SELECT id, name, phone, address FROM customers ORDER BY id DESC").fetchall()
+    return jsonify([dict(r) for r in rows])
+
+@app.route("/api/customer/add", methods=["POST"])
+def api_customer_add():
+    data = request.get_json()
+    name = data.get("name","").strip()
+    phone = data.get("phone","").strip()
+    address = data.get("address","").strip()
+    db = get_db()
+    db.execute("INSERT INTO customers (name, phone, address) VALUES (?, ?, ?)", (name, phone, address))
+    db.commit()
+    return jsonify(success=True)
+
+
+# -----------------------
+# Invoices
+# -----------------------
+@app.route("/api/invoices", methods=["GET"])
+def api_invoices():
+    db = get_db()
+    rows = db.execute("SELECT id, invoice_no, customer_name, customer_phone, date, total FROM invoices ORDER BY id DESC").fetchall()
+    return jsonify([dict(r) for r in rows])
+
+@app.route("/api/invoice/<int:inv_id>", methods=["GET"])
+def api_invoice_detail(inv_id):
+    db = get_db()
+    inv = db.execute("SELECT * FROM invoices WHERE id=?", (inv_id,)).fetchone()
+    if not inv:
+        return jsonify(error="Not found"), 404
+    items = db.execute("SELECT * FROM invoice_items WHERE invoice_id=?", (inv_id,)).fetchall()
+    return jsonify(invoice=dict(inv), items=[dict(r) for r in items])
+
+@app.route("/api/invoice/save", methods=["POST"])
+def api_invoice_save():
+    data = request.get_json()
+    customer_id = data.get("customer_id")
+    customer_name = data.get("customer") or ""
+    customer_phone = data.get("phone") or ""
+    inv_date = data.get("date") or datetime.now().strftime("%Y-%m-%d")
+    total = float(data.get("total") or 0)
+    items = data.get("items") or []
+
+    db = get_db()
+    cur = db.cursor()
+
+    # generate invoice number and year
+    invoice_no, year = next_invoice_no(db)
+
+    # stock check
+    for it in items:
+        pid = int(it.get("product_id") or 0)
+        qty = int(it.get("qty") or 0)
+        if pid:
+            prod = db.execute("SELECT qty, name FROM products WHERE id=?", (pid,)).fetchone()
+            if prod and prod["qty"] < qty:
+                return jsonify(success=False, error=f"Insufficient stock for {prod['name']} (have {prod['qty']}, need {qty})"), 400
+
+    cur.execute("INSERT INTO invoices (invoice_no, year, customer_id, customer_name, customer_phone, date, total) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (invoice_no, year, customer_id, customer_name, customer_phone, inv_date, total))
+    invoice_id = cur.lastrowid
+
+    for it in items:
+        product_id = int(it.get("product_id") or 0)
+        item_name = it.get("item") or ""
+        qty = int(it.get("qty") or 0)
+        price = float(it.get("price") or 0)
+        discount = float(it.get("discount") or 0)
+        tax = float(it.get("tax") or 0)
+        amount = float(it.get("amount") or 0)
+        cur.execute("INSERT INTO invoice_items (invoice_id, product_id, item, qty, price, discount, tax, amount) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                    (invoice_id, product_id, item_name, qty, price, discount, tax, amount))
+        if product_id:
+            cur.execute("UPDATE products SET qty = qty - ? WHERE id=?", (qty, product_id))
+
+    db.commit()
+    return jsonify(success=True, id=invoice_id, invoice_no=invoice_no)
+
+@app.route("/api/invoice/update/<int:inv_id>", methods=["POST"])
+def api_invoice_update(inv_id):
+    data = request.get_json()
+    customer_name = data.get("customer") or ""
+    customer_phone = data.get("phone") or ""
+    inv_date = data.get("date") or datetime.now().strftime("%Y-%m-%d")
+    total = float(data.get("total") or 0)
+    items = data.get("items") or []
+
+    db = get_db()
+    cur = db.cursor()
+    # restore stock from old items
+    old_items = cur.execute("SELECT product_id, qty FROM invoice_items WHERE invoice_id=?", (inv_id,)).fetchall()
+    for oi in old_items:
+        if oi["product_id"]:
+            cur.execute("UPDATE products SET qty = qty + ? WHERE id=?", (oi["qty"], oi["product_id"]))
+    # delete old items
+    cur.execute("DELETE FROM invoice_items WHERE invoice_id=?", (inv_id,))
+    # stock check for new items
+    for it in items:
+        pid = int(it.get("product_id") or 0)
+        qty = int(it.get("qty") or 0)
+        if pid:
+            prod = cur.execute("SELECT qty, name FROM products WHERE id=?", (pid,)).fetchone()
+            if prod and prod["qty"] < qty:
+                db.rollback()
+                return jsonify(success=False, error=f"Insufficient stock for {prod['name']} (have {prod['qty']}, need {qty})"), 400
+    # insert new items and deduct stock
+    for it in items:
+        product_id = int(it.get("product_id") or 0)
+        item_name = it.get("item") or ""
+        qty = int(it.get("qty") or 0)
+        price = float(it.get("price") or 0)
+        discount = float(it.get("discount") or 0)
+        tax = float(it.get("tax") or 0)
+        amount = float(it.get("amount") or 0)
+        cur.execute("INSERT INTO invoice_items (invoice_id, product_id, item, qty, price, discount, tax, amount) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                    (inv_id, product_id, item_name, qty, price, discount, tax, amount))
+        if product_id:
+            cur.execute("UPDATE products SET qty = qty - ? WHERE id=?", (qty, product_id))
+    # update invoice header
+    cur.execute("UPDATE invoices SET customer_name=?, customer_phone=?, date=?, total=? WHERE id=?", (customer_name, customer_phone, inv_date, total, inv_id))
+    db.commit()
+    return jsonify(success=True)
+
+@app.route("/api/invoice/delete/<int:inv_id>", methods=["POST"])
+def api_invoice_delete(inv_id):
+    db = get_db()
+    cur = db.cursor()
+    # restore stock
+    items = cur.execute("SELECT product_id, qty FROM invoice_items WHERE invoice_id=?", (inv_id,)).fetchall()
+    for it in items:
+        if it["product_id"]:
+            cur.execute("UPDATE products SET qty = qty + ? WHERE id=?", (it["qty"], it["product_id"]))
+    cur.execute("DELETE FROM invoice_items WHERE invoice_id=?", (inv_id,))
+    cur.execute("DELETE FROM invoices WHERE id=?", (inv_id,))
+    db.commit()
+    return jsonify(success=True)
+
+
+# -----------------------
+# Reports
+# -----------------------
+@app.route("/api/reports/sales_summary", methods=["GET"])
+def api_report_sales_summary():
+    period = request.args.get("period", "day")
+    db = get_db()
+    cur = db.cursor()
+    if period == "month":
+        rows = cur.execute("SELECT strftime('%Y-%m', date) as period, SUM(total) as total FROM invoices GROUP BY period ORDER BY period DESC").fetchall()
+    else:
+        rows = cur.execute("SELECT date as period, SUM(total) as total FROM invoices GROUP BY date ORDER BY date DESC").fetchall()
+    return jsonify([dict(r) for r in rows])
+
+@app.route("/api/reports/top_products", methods=["GET"])
+def api_report_top_products():
+    db = get_db()
+    rows = db.execute("SELECT item, SUM(qty) as sold_qty, SUM(amount) as revenue FROM invoice_items GROUP BY item ORDER BY sold_qty DESC LIMIT 20").fetchall()
+    return jsonify([dict(r) for r in rows])
+
+
+# -----------------------
+# Print / PDF
+# -----------------------
+@app.route("/invoice/<int:inv_id>/print", methods=["GET"])
+def invoice_print_view(inv_id):
+    db = get_db()
+    inv = db.execute("SELECT * FROM invoices WHERE id=?", (inv_id,)).fetchone()
+    if not inv:
+        return "Invoice not found", 404
+    items = db.execute("SELECT * FROM invoice_items WHERE invoice_id=?", (inv_id,)).fetchall()
+    html = render_template_string("""
+    <!doctype html><html><head><meta charset="utf-8"><title>Invoice {{inv.invoice_no}}</title>
+    <style>body{font-family:Arial;margin:20px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ddd;padding:8px}</style>
+    </head><body>
+      <h2>Invoice {{inv.invoice_no}}</h2>
+      <div><strong>Customer:</strong> {{inv.customer_name}}</div>
+      <div><strong>Phone:</strong> {{inv.customer_phone}}</div>
+      <div><strong>Date:</strong> {{inv.date}}</div>
+      <hr>
+      <table><thead><tr><th>Item</th><th>Qty</th><th>Price</th><th>Discount</th><th>Tax</th><th>Amount</th></tr></thead><tbody>
+      {% for it in items %}
+      <tr><td>{{it.item}}</td><td>{{it.qty}}</td><td>₹{{'%.2f'|format(it.price)}}</td><td>{{'%.2f'|format(it.discount)}}</td><td>{{'%.2f'|format(it.tax)}}</td><td>₹{{'%.2f'|format(it.amount)}}</td></tr>
+      {% endfor %}
+      </tbody></table>
+      <h3 style="text-align:right">Total: ₹{{'%.2f'|format(inv.total)}}</h3>
+      <script>window.onload = function(){ window.print(); }</script>
+    </body></html>
+    """, inv=dict(inv), items=[dict(r) for r in items])
+    return html
+
+@app.route("/invoice/<int:inv_id>/pdf", methods=["GET"])
+def invoice_pdf(inv_id):
+    db = get_db()
+    inv = db.execute("SELECT * FROM invoices WHERE id=?", (inv_id,)).fetchone()
+    if not inv:
+        return "Not found", 404
+    items = db.execute("SELECT * FROM invoice_items WHERE invoice_id=?", (inv_id,)).fetchall()
+    buffer = BytesIO()
+    p = canvas.Canvas(buffer, pagesize=A4)
+    width, height = A4
+    x = 20*mm
+    y = height - 20*mm
+    p.setFont("Helvetica-Bold", 16)
+    p.drawString(x, y, f"Invoice {inv['invoice_no']}")
+    p.setFont("Helvetica", 9)
+    y -= 8*mm
+    p.drawString(x, y, f"Date: {inv['date']}")
+    y -= 6*mm
+    p.drawString(x, y, f"Customer: {inv['customer_name']}")
+    y -= 10*mm
+    p.setFont("Helvetica-Bold", 9)
+    p.drawString(x, y, "Item")
+    p.drawString(x+90*mm, y, "Qty")
+    p.drawString(x+110*mm, y, "Price")
+    p.drawString(x+140*mm, y, "Amount")
+    p.setFont("Helvetica", 9)
+    y -= 6*mm
+    for it in items:
+        if y < 30*mm:
+            p.showPage()
+            y = height - 20*mm
+        p.drawString(x, y, str(it["item"])[:45])
+        p.drawRightString(x+100*mm, y, str(it["qty"]))
+        p.drawRightString(x+130*mm, y, f"{it['price']:.2f}")
+        p.drawRightString(width-x, y, f"{it['amount']:.2f}")
+        y -= 6*mm
+    y -= 8*mm
+    p.setFont("Helvetica-Bold", 11)
+    p.drawRightString(width-x, y, f"Total: ₹{inv['total']:.2f}")
+    p.showPage()
+    p.save()
+    buffer.seek(0)
+    return send_file(buffer, mimetype="application/pdf", as_attachment=True, download_name=f"invoice_{inv['invoice_no']}.pdf")
+
+
+# -----------------------
+# CSV Exports
+# -----------------------
+@app.route("/export/products.csv", methods=["GET"])
+def export_products_csv():
+    db = get_db()
+    rows = db.execute("SELECT id, name, qty, price, category, default_tax, default_discount FROM products").fetchall()
+    si = StringIO()
+    cw = csv.writer(si)
+    cw.writerow(["id","name","qty","price","category","default_tax","default_discount"])
+    for r in rows:
+        cw.writerow([r["id"], r["name"], r["qty"], r["price"], r["category"], r["default_tax"], r["default_discount"]])
+    output = make_response(si.getvalue())
+    output.headers["Content-Disposition"] = "attachment; filename=products.csv"
+    output.headers["Content-type"] = "text/csv"
+    return output
+
+@app.route("/export/invoices.csv", methods=["GET"])
+def export_invoices_csv():
+    db = get_db()
+    rows = db.execute("SELECT id, invoice_no, customer_name, customer_phone, date, total FROM invoices").fetchall()
+    si = StringIO()
+    cw = csv.writer(si)
+    cw.writerow(["id","invoice_no","customer_name","customer_phone","date","total"])
+    for r in rows:
+        cw.writerow([r["id"], r["invoice_no"], r["customer_name"], r["customer_phone"], r["date"], r["total"]])
+    output = make_response(si.getvalue())
+    output.headers["Content-Disposition"] = "attachment; filename=invoices.csv"
+    output.headers["Content-type"] = "text/csv"
+    return output
+
+
+# -----------------------
+# Launch
+# -----------------------
 if __name__ == "__main__":
-    ensure_excel()
+    with app.app_context():
+        get_db()
     app.run(debug=True)
-
