@@ -4,68 +4,66 @@
 <meta charset="utf-8">
 <title>Stock Management Studio</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 
 <style>
   body {
-    font-family: 'Inter', system-ui;
-    background: #fff7ed;
-    overflow-x: hidden;
+    font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont;
+    background: #fff7ed; /* warm retail-friendly background */
   }
 
   /* ------------------ TOPBAR ------------------ */
   .topbar {
     background: linear-gradient(90deg, #f59e0b, #f97316);
-    padding: 18px;
+    padding: 22px;
     border-radius: 14px;
-    margin-bottom: 20px;
+    margin-bottom: 26px;
     box-shadow: 0 6px 32px rgba(249, 115, 22, 0.28);
     color: white;
   }
 
-  @media(max-width: 768px){
-    .topbar {
-      text-align: center;
-    }
-    .topbar .d-flex {
-      flex-direction: column;
-      gap: 12px;
-    }
+  .brand {
+    font-size: 2rem;
+    font-weight: 800;
+    letter-spacing: -0.5px;
   }
 
-  .brand {
-    font-size: 1.7rem;
-    font-weight: 800;
+  .subtitle {
+    font-size: .95rem;
+    opacity: 0.92;
+    margin-top: -3px;
+    letter-spacing: .3px;
   }
 
   .nav-btn {
-    background: rgba(255,255,255,0.18);
+    background: rgba(255, 255, 255, 0.20);
     color: white !important;
     border: none;
-    padding: 8px 14px;
+    padding: 9px 16px;
     border-radius: 6px;
     font-weight: 500;
     backdrop-filter: blur(4px);
+    transition: 0.15s;
   }
 
   .nav-btn:hover {
-    background: rgba(255,255,255,0.3);
+    background: rgba(255, 255, 255, 0.33);
+    transform: translateY(-1px);
   }
 
   /* ------------------ CARDS ------------------ */
   .card-flat {
     background: #ffffff;
     border-radius: 14px;
-    padding: 18px;
+    padding: 20px;
     border: 1px solid #ffebd1;
-    box-shadow: 0 4px 14px rgba(249,115,22,0.06);
+    box-shadow: 0 6px 20px rgba(249,115,22,0.06);
     margin-bottom: 22px;
   }
 
-  /* Mobile Card Padding */
-  @media(max-width: 600px){
-    .card-flat { padding: 14px; }
+  .muted {
+    color: #9A9AA1;
+    font-size: .9rem;
   }
 
   .btn-orange {
@@ -77,6 +75,10 @@
     border: none;
   }
 
+  .btn-orange:hover {
+    background: #ea580c;
+  }
+
   .btn-orange-outline {
     border: 2px solid #f97316;
     color: #f97316;
@@ -86,43 +88,73 @@
     padding: 7px 16px;
   }
 
-  /* ---------- BILLING TABLE: FIX MOBILE CUT ---------- */
-  .table-responsive {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
+  .btn-orange-outline:hover {
+    background: #f9731614;
   }
 
-  table.table th,
-  table.table td {
-    white-space: nowrap;
+  .table thead th {
+    background: #fff4e6;
+    border-bottom: 1px solid #fcd9b6;
   }
 
-  /* ---------- PRODUCT SUGGESTIONS MOBILE FIX ---------- */
+  /* ------------------ PRODUCT SEARCH ------------------ */
   .product-suggestions {
-    max-height: 160px;
+    position: absolute;
+    background: white;
+    border: 1px solid #fcd9b6;
+    border-radius: 8px;
+    max-height: 200px;
     overflow-y: auto;
-    font-size: 14px;
+    width: 100%;
+    z-index: 2000;
+    box-shadow: 0 6px 16px rgba(0,0,0,0.06);
   }
 
-  @media(max-width: 600px){
-    .product-suggestions { font-size: 13px; }
+  .product-suggestions div {
+    padding: 8px 12px;
+    cursor: pointer;
   }
+
+  .product-suggestions div:hover {
+    background: #fff3e0;
+  }
+
+  /* ------------------ SLIDE DRAWER ------------------ */
+  .drawer {
+    position: fixed;
+    right: 0;
+    top: 0;
+    height: 100%;
+    width: 430px;
+    background: white;
+    border-left: 2px solid #fcd9b6;
+    transform: translateX(100%);
+    transition: transform .25s ease;
+    z-index: 1500;
+    padding: 22px;
+    box-shadow: -10px 0 35px rgba(0,0,0,.15);
+  }
+  .drawer.open { transform: translateX(0); }
+  .drawer .title { font-size: 1.4rem; font-weight: 700; }
+  .drawer .muted { font-size: .85rem; }
+
+  .small-btn { padding: 6px 12px; border-radius: 6px; }
+
 </style>
 </head>
 
 <body>
 
-<div class="container my-3">
+<div class="container my-4">
 
   <!-- ---------------- TOPBAR ---------------- -->
-  <div class="topbar d-flex justify-content-between align-items-center flex-wrap">
-    
-    <div class="text-start text-md-start w-100 w-md-auto">
+  <div class="topbar d-flex justify-content-between align-items-center">
+    <div>
       <div class="brand">Stock Management Studio</div>
       <div class="subtitle">Smart Billing • Inventory • Reports</div>
     </div>
 
-    <div class="d-flex gap-2 flex-wrap justify-content-center mt-2">
+    <div class="d-flex gap-2">
       <button class="nav-btn" onclick="showSection('billing')">Billing</button>
       <button class="nav-btn" onclick="showSection('inventory')">Inventory</button>
       <a class="nav-btn" href="/export/products.csv">Export Products</a>
@@ -135,13 +167,12 @@
   <div id="billing-section">
 
     <div class="card-flat">
-      <div class="d-flex justify-content-between flex-wrap mb-3">
+      <div class="d-flex justify-content-between align-items-center mb-3">
         <div>
           <h4>Create Invoice</h4>
-          <div class="text-muted">Search products inline to add them quickly</div>
+          <div class="muted">Search products inline to add them quickly</div>
         </div>
-
-        <div class="d-flex gap-2 flex-wrap mt-2">
+        <div class="d-flex gap-2">
           <button class="btn-orange-outline" onclick="newInvoice()">New Invoice</button>
           <button class="btn-orange" onclick="saveInvoice()">Save Invoice</button>
         </div>
@@ -149,82 +180,79 @@
 
       <!-- CUSTOMER DETAILS -->
       <div class="row g-3 mb-3">
-        <div class="col-6 col-md-3">
+
+        <div class="col-md-3">
           <label class="form-label">Customer</label>
-          <select id="customerSelect" class="form-control"></select>
+          <select id="customerSelect" class="form-control">
+            <option value="">— Guest / New —</option>
+          </select>
         </div>
 
-        <div class="col-6 col-md-3">
+        <div class="col-md-3">
           <label class="form-label">Customer Name</label>
           <input id="custName" class="form-control" placeholder="Name">
         </div>
 
-        <div class="col-6 col-md-3">
+        <div class="col-md-3">
           <label class="form-label">Phone</label>
           <input id="custPhone" class="form-control" placeholder="Phone">
         </div>
 
-        <div class="col-6 col-md-3">
+        <div class="col-md-3">
           <label class="form-label">Date</label>
           <input id="invDate" type="date" class="form-control">
         </div>
       </div>
 
-      <!-- BILL TABLE + MOBILE FIX -->
-      <div class="table-responsive">
-        <table class="table table-bordered align-middle">
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>Product</th>
-              <th>Qty</th>
-              <th>Price</th>
-              <th>Disc %</th>
-              <th>Tax %</th>
-              <th>Amount</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody id="billBody"></tbody>
-        </table>
-      </div>
+      <!-- BILL TABLE -->
+      <table class="table">
+        <thead>
+          <tr>
+            <th style="width:45px">#</th>
+            <th>Product</th>
+            <th width="80">Qty</th>
+            <th width="100">Price</th>
+            <th width="100">Disc %</th>
+            <th width="100">Tax %</th>
+            <th width="120">Amount</th>
+            <th width="50"></th>
+          </tr>
+        </thead>
+        <tbody id="billBody"></tbody>
+      </table>
 
       <button class="btn-orange-outline" onclick="addRow()">+ Add Row</button>
 
       <div class="text-end mt-3">
-        <div class="text-muted">Grand Total</div>
+        <div class="muted">Grand Total</div>
         <div style="font-size:1.6rem; font-weight:800; color:#ea580c;">
           ₹ <span id="grandTotal">0.00</span>
         </div>
       </div>
     </div>
-    <!-- ---------------- SAVED INVOICES ---------------- -->
+
+    <!-- SAVED INVOICES -->
     <div class="card-flat">
-      <div class="d-flex justify-content-between flex-wrap mb-2">
+      <div class="d-flex justify-content-between mb-2">
         <h5>Saved Invoices</h5>
-        <input id="searchInvoice" class="form-control mt-2 mt-md-0" 
-               style="max-width:260px" placeholder="Search invoices..." 
-               oninput="filterInvoices()">
+        <input id="searchInvoice" class="form-control" style="width:300px" placeholder="Search invoices..." oninput="filterInvoices()">
       </div>
 
-      <div class="table-responsive">
-        <table class="table table-hover">
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Invoice No</th>
-              <th>Customer</th>
-              <th>Date</th>
-              <th>Total</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody id="invoicesTable"></tbody>
-        </table>
-      </div>
+      <table class="table table-hover">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Invoice No</th>
+            <th>Customer</th>
+            <th>Date</th>
+            <th>Total</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="invoicesTable"></tbody>
+      </table>
     </div>
-
-  </div> <!-- END BILLING -->
+  </div>
 
 
   <!-- ---------------- INVENTORY SECTION ---------------- -->
@@ -232,15 +260,15 @@
 
     <div class="card-flat">
 
-      <div class="d-flex justify-content-between flex-wrap mb-3">
+      <div class="d-flex justify-content-between mb-3">
         <div>
           <h4>Inventory</h4>
-          <div class="text-muted">Add, edit and manage products</div>
+          <div class="muted">Add, edit and manage products</div>
         </div>
 
-        <div class="d-flex gap-2 flex-wrap mt-2">
-          <select id="filterCategory" class="form-control" style="width:160px"></select>
-          <select id="sortStock" class="form-control" style="width:160px">
+        <div class="d-flex gap-2">
+          <select id="filterCategory" class="form-control" style="width:200px;"></select>
+          <select id="sortStock" class="form-control" style="width:180px;">
             <option value="">Sort by Stock</option>
             <option value="low">Low first</option>
             <option value="high">High first</option>
@@ -249,340 +277,399 @@
       </div>
 
       <div class="row g-2 mb-3">
-        <div class="col-6 col-md-4"><input id="p_name" class="form-control" placeholder="Product name"></div>
-        <div class="col-6 col-md-2"><input id="p_qty" type="number" class="form-control" placeholder="Qty"></div>
-        <div class="col-6 col-md-2"><input id="p_price" type="number" class="form-control" placeholder="Price"></div>
-        <div class="col-6 col-md-2"><input id="p_cat" class="form-control" placeholder="Category"></div>
-        <div class="col-12 col-md-2 d-grid"><button class="btn-orange" onclick="addProduct()">Add</button></div>
+        <div class="col-md-4"><input id="p_name" class="form-control" placeholder="Product name"></div>
+        <div class="col-md-2"><input id="p_qty" type="number" class="form-control" placeholder="Qty"></div>
+        <div class="col-md-2"><input id="p_price" type="number" class="form-control" placeholder="Price"></div>
+        <div class="col-md-2"><input id="p_cat" class="form-control" placeholder="Category"></div>
+        <div class="col-md-2 d-grid"><button class="btn-orange" onclick="addProduct()">Add</button></div>
       </div>
 
-      <div class="table-responsive">
-        <table class="table table-hover">
-          <thead><tr><th>ID</th><th>Name</th><th>Qty</th><th>Price</th><th>Category</th><th></th></tr></thead>
-          <tbody id="productTable"></tbody>
-        </table>
-      </div>
+      <table class="table table-hover">
+        <thead><tr><th>ID</th><th>Name</th><th>Qty</th><th>Price</th><th>Category</th><th></th></tr></thead>
+        <tbody id="productTable"></tbody>
+      </table>
 
     </div>
 
-
-    <!-- ---------------- REPORTS ---------------- -->
+    <!-- REPORTS -->
     <div class="card-flat">
       <h5 class="mb-3">Reports</h5>
 
       <div class="row g-2">
-        <div class="col-6 col-md-3">
+        <div class="col-md-3">
           <select id="reportPeriod" class="form-control">
             <option value="day">Daily</option>
             <option value="month">Monthly</option>
           </select>
         </div>
 
-        <div class="col-6 col-md-3">
+        <div class="col-md-3">
           <button class="btn-orange-outline w-100" onclick="loadSalesSummary()">Sales Summary</button>
         </div>
 
-        <div class="col-12 col-md-6 text-end mt-2 mt-md-0">
-          <button class="btn-orange-outline w-100 w-md-auto" onclick="loadTopProducts()">Top Products</button>
+        <div class="col-md-6 text-end">
+          <button class="btn-orange-outline" onclick="loadTopProducts()">Top Products</button>
         </div>
       </div>
 
       <div id="reportArea" class="mt-3"></div>
+
     </div>
 
-  </div> <!-- END INVENTORY -->
+  </div>
 
-</div> <!-- END CONTAINER -->
+</div>
 
 
-
-<!-- ---------------- SLIDE DRAWER (MOBILE ADAPTED) ---------------- -->
-<style>
-  .drawer {
-    position: fixed;
-    right: 0;
-    top: 0;
-    height: 100%;
-    width: 420px;
-    max-width: 100%;
-    background: white;
-    border-left: 2px solid #ffdab5;
-    transform: translateX(100%);
-    transition: transform .25s ease;
-    z-index: 9999;
-    padding: 20px;
-    box-shadow: -8px 0 25px rgba(0,0,0,.15);
-  }
-
-  .drawer.open { transform: translateX(0); }
-
-  @media(max-width: 600px){
-    .drawer { width: 100%; padding: 16px; }
-  }
-</style>
-
+<!-- ---------------- SLIDE DRAWER ---------------- -->
 <div id="drawer" class="drawer">
-
-  <div class="d-flex justify-content-between align-items-center flex-wrap">
+  <div class="d-flex justify-content-between align-items-center">
     <div>
-      <div class="title" id="drawerTitle" style="font-size:1.3rem; font-weight:700;"></div>
-      <div class="text-muted" id="drawerSubtitle" style="font-size:.9rem;"></div>
+      <div class="title" id="drawerTitle"></div>
+      <div class="muted" id="drawerSubtitle"></div>
     </div>
-
-    <div class="d-flex gap-2 mt-2">
+    <div class="d-flex gap-2">
       <button class="btn-orange-outline small-btn" onclick="printDrawer()">Print</button>
       <a id="drawerPdf" target="_blank" class="btn-orange small-btn">PDF</a>
       <button class="btn btn-light small-btn" onclick="closeDrawer()">Close</button>
     </div>
   </div>
-
   <hr>
   <div id="drawerContent"></div>
 </div>
 
-<!-- ---------------- FULL JAVASCRIPT (ORIGINAL LOGIC, RESPONSIVE SAFE) ---------------- -->
+
+<!-- ---------------- YOUR ORIGINAL JAVASCRIPT (UNCHANGED) ---------------- -->
 <script>
-  /* -------------------------
-     App state and init
-     ------------------------- */
-  let products = [];
-  let invoices = [];
-  let customers = [];
-  let rowCounter = 0;
-  let editingInvoiceId = null;
-  
-  document.addEventListener("DOMContentLoaded", () => {
-    invDate.value = new Date().toISOString().substr(0,10);
-    loadProducts();
-    loadCustomers();
-    loadInvoices();
-    addRow();
-  });
-  
-  /* -------------------------
-     Helpers & UI toggles
-     ------------------------- */
-  function showSection(name){
-    document.getElementById('billing-section').style.display = (name==='billing') ? '' : 'none';
-    document.getElementById('inventory-section').style.display = (name==='inventory') ? '' : 'none';
-  }
-  function closeDrawer(){ document.getElementById('drawer').classList.remove('open'); }
-  function openDrawer(){ document.getElementById('drawer').classList.add('open'); }
-  function printDrawer(){ 
-    const url = document.getElementById('drawerPdf').href;
-    if(url) window.open(url, '_blank');
-  }
-  
-  /* -------------------------
-     Load data
-     ------------------------- */
-  async function loadProducts(){
-    const res = await fetch('/api/products');
-    products = await res.json();
-    renderProducts();
-    populateCategoryFilter();
-    populateProductSelects();
-  }
-  async function loadCustomers(){
-    const res = await fetch('/api/customers');
-    customers = await res.json();
-    populateCustomerSelect();
-  }
-  async function loadInvoices(){
-    const res = await fetch('/api/invoices');
-    invoices = await res.json();
-    renderInvoices();
-  }
-  
-  /* -------------------------
-     Products UI
-     ------------------------- */
-  function renderProducts(){
-    const cat = document.getElementById('filterCategory').value;
-    const sort = document.getElementById('sortStock').value;
-    let list = products.slice();
-    if(cat) list = list.filter(p => p.category === cat);
-    if(sort==='low') list.sort((a,b)=>a.qty-b.qty);
-    if(sort==='high') list.sort((a,b)=>b.qty-a.qty);
-    productTable.innerHTML = list.map(p => `
-      <tr>
-        <td>${p.id}</td>
-        <td>${escape(p.name)}</td>
-        <td class="${p.qty<5 ? 'text-danger':''}">${p.qty}</td>
-        <td>₹${Number(p.price).toFixed(2)}</td>
-        <td>${p.category||''}</td>
-        <td>
-          <button class="btn btn-sm btn-outline-secondary" onclick="editProduct(${p.id})">Edit</button>
-          <button class="btn btn-sm btn-danger" onclick="deleteProduct(${p.id})">Delete</button>
-        </td>
-      </tr>`).join('');
-  }
-  function populateCategoryFilter(){
-    const cats = Array.from(new Set(products.map(p=>p.category).filter(Boolean)));
-    filterCategory.innerHTML = `<option value="">All categories</option>` + cats.map(c=>`<option value="${c}">${c}</option>`).join('');
-  }
-  
-  async function addProduct(){
-    const payload = { name: p_name.value||'', qty: Number(p_qty.value||0), price: Number(p_price.value||0), category: p_cat.value||'', default_tax: 0, default_discount: 0 };
-    if(!payload.name){ alert('Enter product name'); return; }
-    await fetch('/api/product/add', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
-    p_name.value = p_qty.value = p_price.value = p_cat.value = '';
-    loadProducts();
-  }
-  
-  async function deleteProduct(id){
-    if(!confirm('Delete product?')) return;
-    await fetch('/api/product/delete', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ id }) });
-    loadProducts();
-  }
-  
-  function editProduct(id){
-    const p = products.find(x=>x.id===id);
-    if(!p) return;
-    const newName = prompt("Name", p.name);
-    if(newName===null) return;
-    const newQty = prompt("Qty", p.qty);
-    if(newQty===null) return;
-    const newPrice = prompt("Price", p.price);
-    if(newPrice===null) return;
-    const newCat = prompt("Category", p.category||'');
-    if(newCat===null) return;
-    fetch('/api/product/edit', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ id, name:newName, qty: Number(newQty), price: Number(newPrice), category: newCat, default_tax:0, default_discount:0 }) })
-      .then(()=>loadProducts());
-  }
-  
-  /* -------------------------
-     Customer UI
-     ------------------------- */
-  function populateCustomerSelect(){
-    customerSelect.innerHTML = `<option value="">— Guest / New —</option>` + customers.map(c=>`<option value="${c.id}" data-phone="${c.phone}">${escape(c.name)}${c.phone? ' ('+escape(c.phone)+')': ''}</option>`).join('');
-  }
-  async function addCustomer(){
-    const name = custName.value.trim();
-    const phone = custPhone.value.trim();
-    if(!name){ alert('Enter name'); return; }
-    await fetch('/api/customer/add', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ name, phone }) });
-    custName.value = custPhone.value = '';
-    loadCustomers();
-  }
-  
-  /* -------------------------
-     Billing rows (searchable)
-     ------------------------- */
-  function populateProductSelects(){
-    document.querySelectorAll('.product-search').forEach(inp=>{
-      inp.dataset.suggestions = JSON.stringify(products.map(p=>({id:p.id, name:p.name, price:p.price, qty:p.qty})));
-    });
-  }
-  
-  function addRow(pref){
-    rowCounter++;
-    const tr = document.createElement('tr');
-    tr.id = `row_${rowCounter}`;
-    tr.innerHTML = `
-      <td>${rowCounter}</td>
-      <td style="position:relative;">
-        <input class="form-control product-search" placeholder="Type product name" />
-        <div class="product-suggestions" style="display:none;"></div>
-        <input type="hidden" class="product-id" />
+/* -------------------------
+   App state and init
+   ------------------------- */
+let products = [];
+let invoices = [];
+let customers = [];
+let rowCounter = 0;
+let editingInvoiceId = null;
+
+document.addEventListener("DOMContentLoaded", () => {
+  invDate.value = new Date().toISOString().substr(0,10);
+  loadProducts();
+  loadCustomers();
+  loadInvoices();
+  addRow();
+});
+
+/* -------------------------
+   Helpers & UI toggles
+   ------------------------- */
+function showSection(name){
+  document.getElementById('billing-section').style.display = (name==='billing') ? '' : 'none';
+  document.getElementById('inventory-section').style.display = (name==='inventory') ? '' : 'none';
+}
+function closeDrawer(){ document.getElementById('drawer').classList.remove('open'); }
+function openDrawer(){ document.getElementById('drawer').classList.add('open'); }
+function printDrawer(){ 
+  const url = document.getElementById('drawerPdf').href;
+  if(url) window.open(url, '_blank');
+}
+
+/* -------------------------
+   Load data
+   ------------------------- */
+async function loadProducts(){
+  const res = await fetch('/api/products');
+  products = await res.json();
+  renderProducts();
+  populateCategoryFilter();
+  populateProductSelects();
+}
+async function loadCustomers(){
+  const res = await fetch('/api/customers');
+  customers = await res.json();
+  populateCustomerSelect();
+}
+async function loadInvoices(){
+  const res = await fetch('/api/invoices');
+  invoices = await res.json();
+  renderInvoices();
+}
+
+/* -------------------------
+   Products UI
+   ------------------------- */
+function renderProducts(){
+  const cat = document.getElementById('filterCategory').value;
+  const sort = document.getElementById('sortStock').value;
+  let list = products.slice();
+  if(cat) list = list.filter(p => p.category === cat);
+  if(sort==='low') list.sort((a,b)=>a.qty-b.qty);
+  if(sort==='high') list.sort((a,b)=>b.qty-a.qty);
+  productTable.innerHTML = list.map(p => `
+    <tr>
+      <td>${p.id}</td>
+      <td>${escape(p.name)}</td>
+      <td class="${p.qty<5 ? 'text-danger':''}">${p.qty}</td>
+      <td>₹${Number(p.price).toFixed(2)}</td>
+      <td>${p.category||''}</td>
+      <td>
+        <button class="btn btn-sm btn-outline-secondary" onclick="editProduct(${p.id})">Edit</button>
+        <button class="btn btn-sm btn-danger" onclick="deleteProduct(${p.id})">Delete</button>
       </td>
-      <td><input class="form-control qty" type="number" value="${pref?.qty||1}" /></td>
-      <td><input class="form-control price" type="number" value="${pref?.price||0}" step="0.01" /></td>
-      <td><input class="form-control disc" type="number" value="${pref?.discount||0}" /></td>
-      <td><input class="form-control tax" type="number" value="${pref?.tax||0}" /></td>
-      <td><input class="form-control amount" readonly /></td>
-      <td><button class="btn btn-sm btn-danger" onclick="removeRow('${tr.id}')">X</button></td>
-    `;
-    billBody.appendChild(tr);
-  
-    const input = tr.querySelector('.product-search');
-    const suggBox = tr.querySelector('.product-suggestions');
-    input.dataset.suggestions = JSON.stringify(products.map(p=>({id:p.id, name:p.name, price:p.price, qty:p.qty})));
-  
-    input.addEventListener('input', (e)=>{
-      const q = e.target.value.trim().toLowerCase();
-      const list = JSON.parse(input.dataset.suggestions || '[]').filter(p => p.name.toLowerCase().includes(q));
-      if(list.length===0){ suggBox.style.display='none'; return; }
-      suggBox.innerHTML = list.map(p => `<div data-id="${p.id}" data-name="${escape(p.name)}" data-price="${p.price}">${escape(p.name)} <span style="color:#94a3b8"> — ₹${Number(p.price).toFixed(2)}</span></div>`).join('');
-      suggBox.style.display = 'block';
-    });
-  
-    suggBox.addEventListener('click', (ev)=>{
-      const div = ev.target.closest('div[data-id]');
-      if(!div) return;
-      const id = Number(div.dataset.id);
-      const name = div.dataset.name;
-      const price = Number(div.dataset.price);
-      input.value = name;
-      tr.querySelector('.product-id').value = id;
-      tr.querySelector('.price').value = price;
-      suggBox.style.display = 'none';
-      recalcRow(tr.id);
-    });
-  
-    document.addEventListener('click', function docClick(ev){
-      if(!tr.contains(ev.target)) suggBox.style.display = 'none';
-    });
-  
-    ['qty','price','disc','tax'].forEach(cls=>{
-      tr.querySelector(`.${cls}`).addEventListener('input', ()=> recalcRow(tr.id));
-    });
-  
-    if(pref){
-      if(pref.product_id){
-        const pr = products.find(p=>p.id==pref.product_id);
-        if(pr){
-          input.value = pr.name;
-          tr.querySelector('.product-id').value = pr.id;
-        } else {
-          input.value = pref.item||'';
-        }
+    </tr>`).join('');
+}
+function populateCategoryFilter(){
+  const cats = Array.from(new Set(products.map(p=>p.category).filter(Boolean)));
+  filterCategory.innerHTML = `<option value="">All categories</option>` + cats.map(c=>`<option value="${c}">${c}</option>`).join('');
+}
+
+async function addProduct(){
+  const payload = { name: p_name.value||'', qty: Number(p_qty.value||0), price: Number(p_price.value||0), category: p_cat.value||'', default_tax: 0, default_discount: 0 };
+  if(!payload.name){ alert('Enter product name'); return; }
+  await fetch('/api/product/add', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+  p_name.value = p_qty.value = p_price.value = p_cat.value = '';
+  loadProducts();
+}
+
+async function deleteProduct(id){
+  if(!confirm('Delete product?')) return;
+  await fetch('/api/product/delete', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ id }) });
+  loadProducts();
+}
+
+function editProduct(id){
+  const p = products.find(x=>x.id===id);
+  if(!p) return;
+  const newName = prompt("Name", p.name);
+  if(newName===null) return;
+  const newQty = prompt("Qty", p.qty);
+  if(newQty===null) return;
+  const newPrice = prompt("Price", p.price);
+  if(newPrice===null) return;
+  const newCat = prompt("Category", p.category||'');
+  if(newCat===null) return;
+  fetch('/api/product/edit', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ id, name:newName, qty: Number(newQty), price: Number(newPrice), category: newCat, default_tax:0, default_discount:0 }) })
+    .then(()=>loadProducts());
+}
+
+/* -------------------------
+   Customer UI
+   ------------------------- */
+function populateCustomerSelect(){
+  customerSelect.innerHTML = `<option value="">— Guest / New —</option>` + customers.map(c=>`<option value="${c.id}" data-phone="${c.phone}">${escape(c.name)}${c.phone? ' ('+escape(c.phone)+')': ''}</option>`).join('');
+}
+async function addCustomer(){
+  const name = custName.value.trim();
+  const phone = custPhone.value.trim();
+  if(!name){ alert('Enter name'); return; }
+  await fetch('/api/customer/add', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ name, phone }) });
+  custName.value = custPhone.value = '';
+  loadCustomers();
+}
+
+/* -------------------------
+   Billing rows (searchable)
+   ------------------------- */
+function populateProductSelects(){
+  // Refresh product suggestion data on existing rows, we use custom autocomplete so no select population needed
+  document.querySelectorAll('.product-search').forEach(inp=>{
+    inp.dataset.suggestions = JSON.stringify(products.map(p=>({id:p.id, name:p.name, price:p.price, qty:p.qty})));
+  });
+}
+
+function addRow(pref){
+  rowCounter++;
+  const tr = document.createElement('tr');
+  tr.id = `row_${rowCounter}`;
+  tr.innerHTML = `
+    <td>${rowCounter}</td>
+    <td style="position:relative;">
+      <input class="form-control product-search" placeholder="Type product name" />
+      <div class="product-suggestions" style="display:none;"></div>
+      <input type="hidden" class="product-id" />
+    </td>
+    <td><input class="form-control qty" type="number" value="${pref?.qty||1}" /></td>
+    <td><input class="form-control price" type="number" value="${pref?.price||0}" step="0.01" /></td>
+    <td><input class="form-control disc" type="number" value="${pref?.discount||0}" /></td>
+    <td><input class="form-control tax" type="number" value="${pref?.tax||0}" /></td>
+    <td><input class="form-control amount" readonly /></td>
+    <td><button class="btn btn-sm btn-danger" onclick="removeRow('${tr.id}')">X</button></td>
+  `;
+  billBody.appendChild(tr);
+
+  const input = tr.querySelector('.product-search');
+  const suggBox = tr.querySelector('.product-suggestions');
+  input.dataset.suggestions = JSON.stringify(products.map(p=>({id:p.id, name:p.name, price:p.price, qty:p.qty})));
+
+  // show suggestions on input
+  input.addEventListener('input', (e)=>{
+    const q = e.target.value.trim().toLowerCase();
+    const list = JSON.parse(input.dataset.suggestions || '[]').filter(p => p.name.toLowerCase().includes(q));
+    if(list.length===0){ suggBox.style.display='none'; return; }
+    suggBox.innerHTML = list.map(p => `<div data-id="${p.id}" data-name="${escape(p.name)}" data-price="${p.price}">${escape(p.name)} <span style="color:#94a3b8"> — ₹${Number(p.price).toFixed(2)}</span></div>`).join('');
+    suggBox.style.display = 'block';
+  });
+
+  // click suggestion
+  suggBox.addEventListener('click', (ev)=>{
+    const div = ev.target.closest('div[data-id]');
+    if(!div) return;
+    const id = Number(div.dataset.id);
+    const name = div.dataset.name;
+    const price = Number(div.dataset.price);
+    input.value = name;
+    tr.querySelector('.product-id').value = id;
+    tr.querySelector('.price').value = price;
+    suggBox.style.display = 'none';
+    recalcRow(tr.id);
+  });
+
+  // hide suggestions when clicking outside
+  document.addEventListener('click', function docClick(ev){
+    if(!tr.contains(ev.target)) suggBox.style.display = 'none';
+  });
+
+  // recalc on other inputs
+  ['qty','price','disc','tax'].forEach(cls=>{
+    tr.querySelector(`.${cls}`).addEventListener('input', ()=> recalcRow(tr.id));
+  });
+
+  // if pref provided (for editing)
+  if(pref){
+    if(pref.product_id){
+      const pr = products.find(p=>p.id==pref.product_id);
+      if(pr){
+        input.value = pr.name;
+        tr.querySelector('.product-id').value = pr.id;
       } else {
-        input.value = pref.item || '';
+        input.value = pref.item||'';
       }
-      tr.querySelector('.qty').value = pref.qty||1;
-      tr.querySelector('.price').value = pref.price||0;
-      tr.querySelector('.disc').value = pref.discount||0;
-      tr.querySelector('.tax').value = pref.tax||0;
-      recalcRow(tr.id);
+    } else {
+      input.value = pref.item || '';
     }
-  
-    return tr.id;
+    tr.querySelector('.qty').value = pref.qty||1;
+    tr.querySelector('.price').value = pref.price||0;
+    tr.querySelector('.disc').value = pref.discount||0;
+    tr.querySelector('.tax').value = pref.tax||0;
+    recalcRow(tr.id);
   }
-  
-  function removeRow(rowId){
-    const el = document.getElementById(rowId);
-    if(el) el.remove();
-    updateTotal();
+
+  return tr.id;
+}
+
+function removeRow(rowId){
+  const el = document.getElementById(rowId);
+  if(el) el.remove();
+  updateTotal();
+}
+
+function recalcRow(rowId){
+  const row = document.getElementById(rowId);
+  if(!row) return;
+  const qty = Number(row.querySelector('.qty').value || 0);
+  const price = Number(row.querySelector('.price').value || 0);
+  const disc = Number(row.querySelector('.disc').value || 0);
+  const tax = Number(row.querySelector('.tax').value || 0);
+  let amt = qty * price;
+  amt -= amt * (disc/100);
+  amt += amt * (tax/100);
+  row.querySelector('.amount').value = amt.toFixed(2);
+  updateTotal();
+}
+
+function updateTotal(){
+  let total = 0;
+  document.querySelectorAll('#billBody .amount').forEach(a => total += Number(a.value || 0));
+  grandTotal.innerText = total.toFixed(2);
+}
+
+/* -------------------------
+   Save / Edit / Delete invoices
+   ------------------------- */
+async function saveInvoice(){
+  const rows = Array.from(document.querySelectorAll('#billBody tr'));
+  if(rows.length===0){ alert('Add at least one row'); return; }
+
+  const items = rows.map(r=>({
+    product_id: Number(r.querySelector('.product-id').value || 0),
+    item: r.querySelector('.product-search').value || '',
+    qty: Number(r.querySelector('.qty').value || 0),
+    price: Number(r.querySelector('.price').value || 0),
+    discount: Number(r.querySelector('.disc').value || 0),
+    tax: Number(r.querySelector('.tax').value || 0),
+    amount: Number(r.querySelector('.amount').value || 0)
+  }));
+
+  const payload = {
+    customer_id: Number(customerSelect.value || 0) || null,
+    customer: (customerSelect.selectedOptions[0]?.text || custName.value) || '',
+    phone: (customerSelect.selectedOptions[0]?.dataset?.phone || custPhone.value) || '',
+    date: invDate.value || new Date().toISOString().substr(0,10),
+    total: Number(grandTotal.innerText || 0),
+    items: items
+  };
+
+  const res = await fetch('/api/invoice/save', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+  if(res.status===400){
+    const err = await res.json();
+    alert(err.error || 'Save failed');
+    return;
   }
-  
-  function recalcRow(rowId){
-    const row = document.getElementById(rowId);
-    if(!row) return;
-    const qty = Number(row.querySelector('.qty').value || 0);
-    const price = Number(row.querySelector('.price').value || 0);
-    const disc = Number(row.querySelector('.disc').value || 0);
-    const tax = Number(row.querySelector('.tax').value || 0);
-    let amt = qty * price;
-    amt -= amt * (disc/100);
-    amt += amt * (tax/100);
-    row.querySelector('.amount').value = amt.toFixed(2);
-    updateTotal();
+  const j = await res.json();
+  if(j.success){
+    alert('Invoice saved: ' + j.invoice_no);
+    loadInvoices();
+    newInvoice();
+  } else {
+    alert('Save failed');
   }
-  
-  function updateTotal(){
-    let total = 0;
-    document.querySelectorAll('#billBody .amount').forEach(a => total += Number(a.value || 0));
-    grandTotal.innerText = total.toFixed(2);
+}
+
+async function viewInvoice(id){
+  const res = await fetch(`/api/invoice/${id}`);
+  if(!res.ok){ alert('Not found'); return; }
+  const data = await res.json();
+  drawerTitle.innerText = `Invoice ${data.invoice.invoice_no || data.invoice.id}`;
+  drawerSubtitle.innerText = `${data.invoice.customer_name || ''} · ${data.invoice.date}`;
+  drawerContent.innerHTML = `
+    <div><strong>Customer:</strong> ${escape(data.invoice.customer_name||'')}</div>
+    <div><strong>Phone:</strong> ${escape(data.invoice.customer_phone||'')}</div>
+    <hr>
+    <table class="table table-sm">
+      <thead><tr><th>Item</th><th>Qty</th><th>Price</th><th>Disc</th><th>Tax</th><th>Amount</th></tr></thead>
+      <tbody>${data.items.map(it=>`<tr><td>${escape(it.item)}</td><td>${it.qty}</td><td>₹${Number(it.price).toFixed(2)}</td><td>${Number(it.discount).toFixed(2)}</td><td>${Number(it.tax).toFixed(2)}</td><td>₹${Number(it.amount).toFixed(2)}</td></tr>`).join('')}</tbody>
+    </table>
+    <div class="text-end"><strong>Total: ₹${Number(data.invoice.total).toFixed(2)}</strong></div>
+  `;
+  drawerPdf.href = `/invoice/${id}/pdf`;
+  openDrawer();
+}
+
+async function editInvoice(id){
+  const res = await fetch(`/api/invoice/${id}`);
+  if(!res.ok){ alert('Invoice not found'); return; }
+  const data = await res.json();
+  // set header
+  const cust = customers.find(c=> c.name === data.invoice.customer_name || c.phone === data.invoice.customer_phone);
+  if(cust) customerSelect.value = cust.id;
+  else {
+    customerSelect.value = '';
+    custName.value = data.invoice.customer_name || '';
+    custPhone.value = data.invoice.customer_phone || '';
   }
-  
-  /* -------------------------
-     Save / Edit / Delete invoices
-     ------------------------- */
-  async function saveInvoice(){
+  invDate.value = data.invoice.date;
+  // fill rows
+  billBody.innerHTML = '';
+  rowCounter = 0;
+  for(const it of data.items){
+    addRow({ product_id: it.product_id, item: it.item, qty: it.qty, price: it.price, discount: it.discount, tax: it.tax });
+  }
+  updateTotal();
+  // set editing id and change Save behavior
+  editingInvoiceId = id;
+  // override saveInvoice temporarily
+  const originalSave = saveInvoice;
+  saveInvoice = async function(){
     const rows = Array.from(document.querySelectorAll('#billBody tr'));
     if(rows.length===0){ alert('Add at least one row'); return; }
-  
     const items = rows.map(r=>({
       product_id: Number(r.querySelector('.product-id').value || 0),
       item: r.querySelector('.product-search').value || '',
@@ -592,212 +679,111 @@
       tax: Number(r.querySelector('.tax').value || 0),
       amount: Number(r.querySelector('.amount').value || 0)
     }));
-  
     const payload = {
-      customer_id: Number(customerSelect.value || 0) || null,
-      customer: (customerSelect.selectedOptions[0]?.text || custName.value) || '',
-      phone: (customerSelect.selectedOptions[0]?.dataset?.phone || custPhone.value) || '',
+      customer: custName.value || customerSelect.selectedOptions[0]?.text || '',
+      phone: custPhone.value || customerSelect.selectedOptions[0]?.dataset?.phone || '',
       date: invDate.value || new Date().toISOString().substr(0,10),
       total: Number(grandTotal.innerText || 0),
       items: items
     };
-  
-    const res = await fetch('/api/invoice/save', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
-    if(res.status===400){
-      const err = await res.json();
-      alert(err.error || 'Save failed');
-      return;
-    }
-    const j = await res.json();
+    const r = await fetch(`/api/invoice/update/${id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+    if(r.status===400){ const j = await r.json(); alert(j.error||'Update failed'); return; }
+    const j = await r.json();
     if(j.success){
-      alert('Invoice saved: ' + j.invoice_no);
+      alert('Invoice updated');
       loadInvoices();
       newInvoice();
-    } else {
-      alert('Save failed');
-    }
-  }
-  
-  async function viewInvoice(id){
-    const res = await fetch(`/api/invoice/${id}`);
-    if(!res.ok){ alert('Not found'); return; }
-    const data = await res.json();
-    drawerTitle.innerText = `Invoice ${data.invoice.invoice_no || data.invoice.id}`;
-    drawerSubtitle.innerText = `${data.invoice.customer_name || ''} · ${data.invoice.date}`;
-    drawerContent.innerHTML = `
-      <div><strong>Customer:</strong> ${escape(data.invoice.customer_name||'')}</div>
-      <div><strong>Phone:</strong> ${escape(data.invoice.customer_phone||'')}</div>
-      <hr>
-      <table class="table table-sm">
-        <thead><tr><th>Item</th><th>Qty</th><th>Price</th><th>Disc</th><th>Tax</th><th>Amount</th></tr></thead>
-        <tbody>${data.items.map(it=>`<tr><td>${escape(it.item)}</td><td>${it.qty}</td><td>₹${Number(it.price).toFixed(2)}</td><td>${Number(it.discount).toFixed(2)}</td><td>${Number(it.tax).toFixed(2)}</td><td>₹${Number(it.amount).toFixed(2)}</td></tr>`).join('')}</tbody>
-      </table>
-      <div class="text-end"><strong>Total: ₹${Number(data.invoice.total).toFixed(2)}</strong></div>
-    `;
-    drawerPdf.href = `/invoice/${id}/pdf`;
-    openDrawer();
-  }
-  
-  async function editInvoice(id){
-    const res = await fetch(`/api/invoice/${id}`);
-    if(!res.ok){ alert('Invoice not found'); return; }
-    const data = await res.json();
-  
-    const cust = customers.find(c=> c.name === data.invoice.customer_name || c.phone === data.invoice.customer_phone);
-    if(cust) customerSelect.value = cust.id;
-    else {
-      customerSelect.value = '';
-      custName.value = data.invoice.customer_name || '';
-      custPhone.value = data.invoice.customer_phone || '';
-    }
-    invDate.value = data.invoice.date;
-  
-    billBody.innerHTML = '';
-    rowCounter = 0;
-    for(const it of data.items){
-      addRow({ 
-        product_id: it.product_id, 
-        item: it.item, 
-        qty: it.qty, 
-        price: it.price, 
-        discount: it.discount, 
-        tax: it.tax 
-      });
-    }
-    updateTotal();
-  
-    editingInvoiceId = id;
-  
-    const originalSave = saveInvoice;
-    saveInvoice = async function(){
-      const rows = Array.from(document.querySelectorAll('#billBody tr'));
-      if(rows.length===0){ alert('Add at least one row'); return; }
-  
-      const items = rows.map(r=>({
-        product_id: Number(r.querySelector('.product-id').value || 0),
-        item: r.querySelector('.product-search').value || '',
-        qty: Number(r.querySelector('.qty').value || 0),
-        price: Number(r.querySelector('.price').value || 0),
-        discount: Number(r.querySelector('.disc').value || 0),
-        tax: Number(r.querySelector('.tax').value || 0),
-        amount: Number(r.querySelector('.amount').value || 0)
-      }));
-  
-      const payload = {
-        customer: custName.value || customerSelect.selectedOptions[0]?.text || '',
-        phone: custPhone.value || customerSelect.selectedOptions[0]?.dataset?.phone || '',
-        date: invDate.value || new Date().toISOString().substr(0,10),
-        total: Number(grandTotal.innerText || 0),
-        items: items
-      };
-  
-      const r = await fetch(`/api/invoice/update/${id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
-  
-      if(r.status===400){ const j = await r.json(); alert(j.error||'Update failed'); return; }
-  
-      const j = await r.json();
-      if(j.success){
-        alert('Invoice updated');
-        loadInvoices();
-        newInvoice();
-        saveInvoice = originalSave;
-        editingInvoiceId = null;
-      } else alert('Update failed');
-    };
-  
-    window.scrollTo({ top: 0, behavior:'smooth' });
-  }
-  
-  async function deleteInvoice(id){
-    if(!confirm('Delete invoice?')) return;
-    await fetch(`/api/invoice/delete/${id}`, { method:'POST' });
-    loadInvoices();
-  }
-  
-  /* -------------------------
-     UI helpers for invoices list and search
-     ------------------------- */
-  function renderInvoices(){
-    invoicesTable.innerHTML = invoices.map(inv => `
-      <tr>
-        <td>${inv.id}</td>
-        <td>${inv.invoice_no || ''}</td>
-        <td>${escape(inv.customer_name||'')}</td>
-        <td>${inv.date || ''}</td>
-        <td>₹${Number(inv.total||0).toFixed(2)}</td>
-        <td>
-          <button class="btn btn-sm btn-outline-secondary" onclick="viewInvoice(${inv.id})">View</button>
-          <button class="btn btn-sm btn-outline-primary" onclick="window.open('/invoice/${inv.id}/pdf','_blank')">PDF</button>
-          <button class="btn btn-sm btn-warning" onclick="editInvoice(${inv.id})">Edit</button>
-          <button class="btn btn-sm btn-danger" onclick="deleteInvoice(${inv.id})">Delete</button>
-        </td>
-      </tr>
-    `).join('');
-  }
-  
-  function filterInvoices(){
-    const q = (searchInvoice.value||'').toLowerCase().trim();
-    if(!q){ renderInvoices(); return; }
-    const filtered = invoices.filter(i => String(i.id).includes(q) || (i.customer_name||'').toLowerCase().includes(q) || (i.invoice_no||'').toLowerCase().includes(q));
-    invoicesTable.innerHTML = filtered.map(inv => `
-      <tr>
-        <td>${inv.id}</td>
-        <td>${inv.invoice_no || ''}</td>
-        <td>${escape(inv.customer_name||'')}</td>
-        <td>${inv.date || ''}</td>
-        <td>₹${Number(inv.total||0).toFixed(2)}</td>
-        <td>
-          <button class="btn btn-sm btn-outline-secondary" onclick="viewInvoice(${inv.id})">View</button>
-          <button class="btn btn-sm btn-outline-primary" onclick="window.open('/invoice/${inv.id}/pdf','_blank')">PDF</button>
-          <button class="btn btn-sm btn-warning" onclick="editInvoice(${inv.id})">Edit</button>
-          <button class="btn btn-sm btn-danger" onclick="deleteInvoice(${inv.id})">Delete</button>
-        </td>
-      </tr>
-    `).join('');
-  }
-  
-  /* -------------------------
-     Reports
-     ------------------------- */
-  async function loadSalesSummary(){
-    const period = document.getElementById('reportPeriod').value;
-    const res = await fetch(`/api/reports/sales_summary?period=${period}`);
-    const data = await res.json();
-    reportArea.innerHTML = `<table class="table"><thead><tr><th>Period</th><th>Total</th></tr></thead><tbody>${data.map(r=>`<tr><td>${r.period}</td><td>₹${Number(r.total).toFixed(2)}</td></tr>`).join('')}</tbody></table>`;
-  }
-  
-  async function loadTopProducts(){
-    const res = await fetch('/api/reports/top_products');
-    const data = await res.json();
-    reportArea.innerHTML = `<h6>Top Products</h6><table class="table"><thead><tr><th>Item</th><th>Qty Sold</th><th>Revenue</th></tr></thead><tbody>${data.map(r=>`<tr><td>${escape(r.item)}</td><td>${r.sold_qty}</td><td>₹${Number(r.revenue).toFixed(2)}</td></tr>`).join('')}</tbody></table>`;
-  }
-  
-  /* -------------------------
-     New invoice helper
-     ------------------------- */
-  function newInvoice(){
-    customerSelect.value = '';
-    custName.value = custPhone.value = '';
-    invDate.value = new Date().toISOString().substr(0,10);
-    billBody.innerHTML = '';
-    rowCounter = 0;
-    addRow();
-    updateTotal();
-    editingInvoiceId = null;
-  }
-  
-  /* -------------------------
-     Utility
-     ------------------------- */
-  function escape(s){ 
-    return (s||'').toString()
-      .replaceAll('&','&amp;')
-      .replaceAll('<','&lt;')
-      .replaceAll('>','&gt;')
-      .replaceAll('"','&quot;'); 
-  }
-  </script>
-  
-  </body>
-  </html>
-  
+      saveInvoice = originalSave; // restore
+      editingInvoiceId = null;
+    } else alert('Update failed');
+  };
+  window.scrollTo({ top: 0, behavior:'smooth' });
+}
+
+async function deleteInvoice(id){
+  if(!confirm('Delete invoice?')) return;
+  await fetch(`/api/invoice/delete/${id}`, { method:'POST' });
+  loadInvoices();
+}
+
+/* -------------------------
+   UI helpers for invoices list and search
+   ------------------------- */
+function renderInvoices(){
+  invoicesTable.innerHTML = invoices.map(inv => `
+    <tr>
+      <td>${inv.id}</td>
+      <td>${inv.invoice_no || ''}</td>
+      <td>${escape(inv.customer_name||'')}</td>
+      <td>${inv.date || ''}</td>
+      <td>₹${Number(inv.total||0).toFixed(2)}</td>
+      <td>
+        <button class="btn btn-sm btn-outline-secondary" onclick="viewInvoice(${inv.id})">View</button>
+        <button class="btn btn-sm btn-outline-primary" onclick="window.open('/invoice/${inv.id}/pdf','_blank')">PDF</button>
+        <button class="btn btn-sm btn-warning" onclick="editInvoice(${inv.id})">Edit</button>
+        <button class="btn btn-sm btn-danger" onclick="deleteInvoice(${inv.id})">Delete</button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+function filterInvoices(){
+  const q = (searchInvoice.value||'').toLowerCase().trim();
+  if(!q){ renderInvoices(); return; }
+  const filtered = invoices.filter(i => String(i.id).includes(q) || (i.customer_name||'').toLowerCase().includes(q) || (i.invoice_no||'').toLowerCase().includes(q));
+  invoicesTable.innerHTML = filtered.map(inv => `
+    <tr>
+      <td>${inv.id}</td>
+      <td>${inv.invoice_no || ''}</td>
+      <td>${escape(inv.customer_name||'')}</td>
+      <td>${inv.date || ''}</td>
+      <td>₹${Number(inv.total||0).toFixed(2)}</td>
+      <td>
+        <button class="btn btn-sm btn-outline-secondary" onclick="viewInvoice(${inv.id})">View</button>
+        <button class="btn btn-sm btn-outline-primary" onclick="window.open('/invoice/${inv.id}/pdf','_blank')">PDF</button>
+        <button class="btn btn-sm btn-warning" onclick="editInvoice(${inv.id})">Edit</button>
+        <button class="btn btn-sm btn-danger" onclick="deleteInvoice(${inv.id})">Delete</button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+/* -------------------------
+   Reports
+   ------------------------- */
+async function loadSalesSummary(){
+  const period = document.getElementById('reportPeriod').value;
+  const res = await fetch(`/api/reports/sales_summary?period=${period}`);
+  const data = await res.json();
+  reportArea.innerHTML = `<table class="table"><thead><tr><th>Period</th><th>Total</th></tr></thead><tbody>${data.map(r=>`<tr><td>${r.period}</td><td>₹${Number(r.total).toFixed(2)}</td></tr>`).join('')}</tbody></table>`;
+}
+
+async function loadTopProducts(){
+  const res = await fetch('/api/reports/top_products');
+  const data = await res.json();
+  reportArea.innerHTML = `<h6>Top Products</h6><table class="table"><thead><tr><th>Item</th><th>Qty Sold</th><th>Revenue</th></tr></thead><tbody>${data.map(r=>`<tr><td>${escape(r.item)}</td><td>${r.sold_qty}</td><td>₹${Number(r.revenue).toFixed(2)}</td></tr>`).join('')}</tbody></table>`;
+}
+
+/* -------------------------
+   New invoice helper / clear
+   ------------------------- */
+function newInvoice(){
+  customerSelect.value = '';
+  custName.value = custPhone.value = '';
+  invDate.value = new Date().toISOString().substr(0,10);
+  billBody.innerHTML = '';
+  rowCounter = 0;
+  addRow();
+  updateTotal();
+  editingInvoiceId = null;
+}
+
+/* -------------------------
+   Utilities
+   ------------------------- */
+function escape(s){ return (s||'').toString().replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;'); }
+
+</script>
+
+</body>
+</html>
